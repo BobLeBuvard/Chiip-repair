@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Console Service Price Calculator</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .calculator { border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+    .total { font-weight: bold; margin-top: 10px; }
+    button { margin-top: 10px; padding: 6px 12px; border-radius: 6px; }
+    .grand-total { font-size: 1.2em; font-weight: bold; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Console Service Price Calculator</h1>
+
+  <div id="consoles"></div>
+  <button onclick="addConsole()">Add Console</button>
+
+  <div class="grand-total">Grand Total: <span id="grandTotal">0</span> €</div>
+
+  <script>
+    const prices = {
+      Oled:   { chip: 25, sd: 18, setup: 5, games: 5, tipMin: 0, tipMax: 25, warranty: 30 },
+      Lite:   { chip: 20, sd: 18, setup: 5, games: 5, tipMin: 0, tipMax: 25, warranty: 15 },
+      Normale:{ chip: 20, sd: 18, setup: 5, games: 5, tipMin: 0, tipMax: 25, warranty: 15 }
+    };
+
+    let consoleCount = 0;
+
+    function addConsole() {
+      const id = consoleCount++;
+      const container = document.createElement('div');
+      container.className = 'calculator';
+
+      container.innerHTML = `
+        <label>Console Type:
+          <select id="consoleType-${id}" onchange="updateTotal(${id})">
+            <option value="Oled">Oled</option>
+            <option value="Lite">Lite</option>
+            <option value="Normale">Normale</option>
+          </select>
+        </label>
+        <div>
+          <label><input type="checkbox" id="chip-${id}" onchange="updateTotal(${id})"> Pose de la puce</label><br>
+          <label><input type="checkbox" id="sd-${id}" onchange="updateTotal(${id})"> Carte MicroSD Sandisk 128Go</label><br>
+          <label><input type="checkbox" id="setup-${id}" onchange="updateTotal(${id})"> Setup SD</label><br>
+          <label><input type="checkbox" id="games-${id}" onchange="updateTotal(${id})"> Jeux</label><br>
+          <label>Pourboire (0–25 €): <input type="number" id="tip-${id}" min="0" max="25" value="0" onchange="updateTotal(${id})"></label><br>
+          <label><input type="checkbox" id="warranty-${id}" onchange="updateTotal(${id})"> Garantie</label>
+        </div>
+        <div class="total">Total: <span id="total-${id}">0</span> €</div>
+      `;
+
+      document.getElementById('consoles').appendChild(container);
+      updateTotal(id);
+    }
+
+    function updateTotal(id) {
+      const type = document.getElementById(`consoleType-${id}`).value;
+      const opts = prices[type];
+
+      let total = 0;
+      if (document.getElementById(`chip-${id}`).checked) total += opts.chip;
+      if (document.getElementById(`sd-${id}`).checked) total += opts.sd;
+      if (document.getElementById(`setup-${id}`).checked) total += opts.setup;
+      if (document.getElementById(`games-${id}`).checked) total += opts.games;
+      if (document.getElementById(`warranty-${id}`).checked) total += opts.warranty;
+
+      let tip = parseInt(document.getElementById(`tip-${id}`).value) || 0;
+      if (tip < 0) tip = 0;
+      if (tip > 25) tip = 25;
+      total += tip;
+
+      document.getElementById(`total-${id}`).textContent = total;
+
+      updateGrandTotal();
+    }
+
+    function updateGrandTotal() {
+      let sum = 0;
+      for (let i = 0; i < consoleCount; i++) {
+        const elem = document.getElementById(`total-${i}`);
+        if (elem) sum += parseInt(elem.textContent);
+      }
+      document.getElementById('grandTotal').textContent = sum;
+    }
+
+    // Initialize with one console
+    addConsole();
+  </script>
+</body>
+</html>
