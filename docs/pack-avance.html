@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Console Service - Pack Avancé</title>
+  <script src="config.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+    .container { max-width: 900px; margin: 0 auto; padding: 20px; background-color: white; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #333; }
+    .console-container { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+    .console-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    .options-vertical { display: flex; flex-direction: column; gap: 10px; }
+    .option { padding: 12px; border: 1px solid #eee; border-radius: 5px; background-color: #fafafa; }
+    .option label { display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin: 0; }
+    .option-info { display: flex; flex-direction: column; }
+    .option-price { font-weight: bold; color: #d32f2f; }
+    .option-duration { font-size: 0.8em; color: #666; }
+    .tip-input { width: 70px; padding: 5px; }
+    .games-list { margin-top: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 5px; display: none; }
+    .game-input { width: 100%; margin-bottom: 5px; padding: 8px; border: 1px solid #ddd; border-radius: 3px; }
+    .total { font-weight: bold; margin-top: 10px; font-size: 1.2em; }
+    .duration-summary { color: #666; font-size: 0.9em; margin-top: 5px; }
+    .action-buttons { margin-top: 20px; text-align: center; }
+    button { padding: 10px 20px; margin: 0 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; }
+    .btn-primary { background-color: #2196F3; color: white; }
+    .btn-secondary { background-color: #f5f5f5; color: #333; border: 1px solid #ddd; }
+    .btn-danger { background-color: #f44336; color: white; }
+    .grand-total { font-size: 1.3em; font-weight: bold; margin-top: 20px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Pack Avancé - Console Service</h1>
+    <p>Personnalisez votre service en sélectionnant les options souhaitées.</p>
+    
+    <div id="consoles-container"></div>
+    
+    <div class="action-buttons">
+      <button class="btn-secondary" onclick="location.href='index.html'">Retour</button>
+      <button class="btn-primary" onclick="addConsole()">Ajouter une console</button>
+      <button class="btn-primary" onclick="proceedToTimeSelection()">Voir les plages horaires disponibles</button>
+    </div>
+    
+    <div class="grand-total">Total: <span id="grandTotal">0</span> €</div>
+    <div class="grand-total">Durée totale estimée: <span id="totalDuration">0</span> minutes</div>
+  </div>
+
+  <script>
+    let consoleCount = 0;
+
+    function addConsole() {
+      const id = consoleCount++;
+      const container = document.createElement('div');
+      container.className = 'console-container';
+      container.id = `console-${id}`;
+
+      container.innerHTML = `
+        <div class="console-header">
+          <h3>Console ${id + 1}</h3>
+          <button class="btn-danger" onclick="removeConsole(${id})">Retirer cette console</button>
+        </div>
+        
+        <div class="options-vertical">
+          <div class="option">
+            <label>Modèle de console:
+              <select id="consoleType-${id}" onchange="updateConsole(${id})">
+                <option value="Lite">Switch Lite</option>
+                <option value="Normale">Switch Regular</option>
+                <option value="Oled">Switch OLED</option>
+              </select>
+            </label>
+          </div>
+          
+          <div class="option">
+            <label>
+              <input type="checkbox" id="chip-${id}" onchange="updateConsole(${id})">
+              <div class="option-info">
+                <span>Pose de la puce</span>
+                <div>
+                  <span class="option-price" id="chipPrice-${id}">20</span> €
+                  <span class="option-duration" id="chipDuration-${id}">(60 min)</span>
+                </div>
+              </div>
+            </label>
+          </div>
+          
+          <div class="option">
+            <label>
+              <input type="checkbox" id="sd-${id}" onchange="updateConsole(${id})">
+              <div class="option-info">
+                <span>Carte MicroSD Sandisk 128Go</span>
+                <span class="option-price" id="sdPrice-${id}">18</span> €
+              </div>
+            </label>
+          </div>
+          
+          <div class="option">
+            <label>
+              <input type="checkbox" id="setup-${id}" onchange="updateConsole(${id})">
+              <div class="option-info">
+                <span>Setup SD</span>
+                <div>
+                  <span class="option-price" id="setupPrice-${id}">5</span> €
+                  <span class="option-duration" id="setupDuration-${id}">(30 min)</span>
+                </div>
+              </div>
+            </label>
+          </div>
+          
+          <div class="option">
+            <label>
+              <input type="checkbox" id="games-${id}" onchange="toggleGamesList(${id})">
+              <div class="option-info">
+                <span>Jeux (jusqu'à 8)</span>
+                <div>
+                  <span class="option-price" id="gamesPrice-${id}">5</span> €
+                  <span class="option-duration" id="gamesDuration-${id}">(60 min)</span>
+                </div>
+              </div>
+            </label>
+            <div class="games-list" id="gamesList-${id}">
+              <p><small>Liste des jeux souhaités:</small></p>
+              ${Array.from({length: 8}, (_, i) => 
+                `<input type="text" class="game-input" id="game-${id}-${i}" placeholder="Jeu ${i+1}" onchange="updateConsole(${id})">`
+              ).join('')}
+            </div>
+          </div>
+          
+          <div class="option">
+            <label>
+              <input type="checkbox" id="warranty-${id}" onchange="updateConsole(${id})">
+              <div class="option-info">
+                <span>Garantie</span>
+                <span class="option-price" id="warrantyPrice-${id}">10</span> €
+              </div>
+            </label>
+          </div>
+          
+          <div class="option">
+            <label>
+              <span>Pourboire (0–25 €):</span>
+              <input type="number" class="tip-input" id="tip-${id}" min="0" max="25" value="0" onchange="updateConsole(${id})"> €
+            </label>
+          </div>
+        </div>
+        
+        <div class="total">Total pour cette console: <span id="total-${id}">0</span> €</div>
+        <div class="duration-summary">Durée estimée: <span id="duration-${id}">0</span> minutes</div>
+      `;
+
+      document.getElementById('consoles-container').appendChild(container);
+      updateConsole(id);
+    }
+
+    function removeConsole(id) {
+      const container = document.getElementById(`console-${id}`);
+      if (container) {
+        container.remove();
+        updateGrandTotal();
+      }
+    }
+
+    function toggleGamesList(id) {
+      const gamesCheckbox = document.getElementById(`games-${id}`);
+      const gamesList = document.getElementById(`gamesList-${id}`);
+      gamesList.style.display = gamesCheckbox.checked ? 'block' : 'none';
+      updateConsole(id);
+    }
+
+    function updateConsole(id) {
+      const type = document.getElementById(`consoleType-${id}`).value;
+      const opts = CONFIG.prices[type];
+      const durs = CONFIG.durations;
+      
+      // Mettre à jour les prix affichés
+      document.getElementById(`chipPrice-${id}`).textContent = opts.chip;
+      document.getElementById(`sdPrice-${id}`).textContent = opts.sd;
+      document.getElementById(`setupPrice-${id}`).textContent = opts.setup;
+      document.getElementById(`gamesPrice-${id}`).textContent = opts.games;
+      document.getElementById(`warrantyPrice-${id}`).textContent = opts.warranty;
+      
+      // Calculer le prix total
+      let total = 0;
+      if (document.getElementById(`chip-${id}`).checked) total += opts.chip;
+      if (document.getElementById(`sd-${id}`).checked) total += opts.sd;
+      if (document.getElementById(`setup-${id}`).checked) total += opts.setup;
+      if (document.getElementById(`games-${id}`).checked) total += opts.games;
+      if (document.getElementById(`warranty-${id}`).checked) total += opts.warranty;
+
+      let tip = parseInt(document.getElementById(`tip-${id}`).value) || 0;
+      if (tip < 0) tip = 0;
+      if (tip > 25) tip = 25;
+      total += tip;
+
+      document.getElementById(`total-${id}`).textContent = total;
+
+      // Calculer la durée totale
+      let duration = durs.base;
+      if (document.getElementById(`chip-${id}`).checked) duration += durs.chip;
+      if (document.getElementById(`setup-${id}`).checked) duration += durs.setup;
+      if (document.getElementById(`games-${id}`).checked) duration += durs.games;
+      
+      document.getElementById(`duration-${id}`).textContent = duration;
+
+      updateGrandTotal();
+    }
+
+    function updateGrandTotal() {
+      let sum = 0;
+      let totalDuration = 0;
+      
+      for (let i = 0; i < consoleCount; i++) {
+        const totalElem = document.getElementById(`total-${i}`);
+        const durationElem = document.getElementById(`duration-${i}`);
+        
+        if (totalElem) sum += parseInt(totalElem.textContent);
+        if (durationElem) totalDuration += parseInt(durationElem.textContent);
+      }
+      
+      document.getElementById('grandTotal').textContent = sum;
+      document.getElementById('totalDuration').textContent = totalDuration;
+    }
+
+    function proceedToTimeSelection() {
+      // Sauvegarder les données dans le localStorage
+      localStorage.setItem('packType', 'avance');
+      localStorage.setItem('consolesCount', consoleCount);
+      
+      // Récupérer les détails de chaque console
+      const consoles = [];
+      let totalDuration = 0;
+      
+      for (let i = 0; i < consoleCount; i++) {
+        const container = document.getElementById(`console-${i}`);
+        if (container) {
+          const type = document.getElementById(`consoleType-${i}`).value;
+          const chip = document.getElementById(`chip-${i}`).checked;
+          const sd = document.getElementById(`sd-${i}`).checked;
+          const setup = document.getElementById(`setup-${i}`).checked;
+          const games = document.getElementById(`games-${i}`).checked;
+          const warranty = document.getElementById(`warranty-${i}`).checked;
+          const tip = parseInt(document.getElementById(`tip-${i}`).value) || 0;
+          const total = parseInt(document.getElementById(`total-${i}`).textContent);
+          const duration = parseInt(document.getElementById(`duration-${i}`).textContent);
+          
+          // Récupérer la liste des jeux
+          const gamesList = [];
+          if (games) {
+            for (let j = 0; j < 8; j++) {
+              const gameInput = document.getElementById(`game-${i}-${j}`);
+              if (gameInput && gameInput.value) {
+                gamesList.push(gameInput.value);
+              }
+            }
+          }
+          
+          consoles.push({
+            type, chip, sd, setup, games, warranty, tip, total, duration, gamesList
+          });
+          
+          totalDuration += duration;
+        }
+      }
+      
+      localStorage.setItem('consoles', JSON.stringify(consoles));
+      localStorage.setItem('totalPrice', document.getElementById('grandTotal').textContent);
+      localStorage.setItem('totalDuration', totalDuration);
+      
+      console.log('Données pack avancé sauvegardées:', {
+        consolesCount: consoleCount,
+        totalPrice: document.getElementById('grandTotal').textContent,
+        totalDuration: totalDuration
+      });
+      
+      // Rediriger vers la page de sélection des plages horaires
+      location.href = 'plages-horaires.html';
+    }
+
+    // Initialiser avec une console
+    addConsole();
+  </script>
+</body>
+</html>

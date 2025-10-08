@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Console Service - Administration</title>
+  <script src="config.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; background-color: white; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #333; margin-bottom: 30px; }
+    .admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+    .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; text-align: center; }
+    .stat-number { font-size: 2em; font-weight: bold; margin: 10px 0; }
+    .reservations-list { margin-top: 20px; }
+    .reservation { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 20px; background-color: #fafafa; }
+    .reservation-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+    .reservation-id { font-weight: bold; color: #666; }
+    .client-info { margin-bottom: 10px; }
+    .reservation-details { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+    .status { padding: 5px 10px; border-radius: 15px; font-size: 0.8em; font-weight: bold; }
+    .status-confirmed { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; }
+    .status-completed { background-color: #e3f2fd; color: #1565c0; border: 1px solid #1565c0; }
+    .status-cancelled { background-color: #ffebee; color: #c62828; border: 1px solid #c62828; }
+    .action-buttons { display: flex; gap: 10px; margin-top: 15px; }
+    .btn { padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 0.9em; }
+    .btn-complete { background-color: #4CAF50; color: white; }
+    .btn-cancel { background-color: #f44336; color: white; }
+    .btn-edit { background-color: #FF9800; color: white; }
+    .console-details { background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-top: 10px; }
+    .no-reservations { text-align: center; padding: 40px; color: #666; font-size: 1.1em; }
+    .filters { display: flex; gap: 15px; margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; }
+    .filter-group { display: flex; flex-direction: column; }
+    .filter-group label { font-weight: bold; margin-bottom: 5px; }
+    .filter-select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Administration - Gestion des Réservations</h1>
+    
+    <div class="admin-stats" id="adminStats">
+      <!-- Les statistiques seront affichées ici -->
+    </div>
+
+    <div class="filters">
+      <div class="filter-group">
+        <label for="statusFilter">Filtrer par statut:</label>
+        <select id="statusFilter" class="filter-select" onchange="filterReservations()">
+          <option value="all">Tous les statuts</option>
+          <option value="confirmed">Confirmé</option>
+          <option value="completed">Terminé</option>
+          <option value="cancelled">Annulé</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="packTypeFilter">Filtrer par type de pack:</label>
+        <select id="packTypeFilter" class="filter-select" onchange="filterReservations()">
+          <option value="all">Tous les packs</option>
+          <option value="simple">Pack Simple</option>
+          <option value="avance">Pack Avancé</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="reservations-list" id="reservationsList">
+      <!-- Liste des réservations -->
+    </div>
+  </div>
+
+  <script>
+    // Charger et afficher les réservations
+    function loadReservations() {
+      console.log('Chargement des réservations...');
+      
+      // Récupérer les réservations depuis le localStorage
+      const reservations = RESERVATION_STORAGE.getReservations();
+      console.log('Réservations trouvées:', reservations);
+      
+      // Mettre à jour les statistiques
+      updateStats(reservations);
+      
+      // Afficher les réservations
+      displayReservations(reservations);
+    }
+
+    // Mettre à jour les statistiques
+    function updateStats(reservations) {
+      const stats = {
+        total: reservations.length,
+        confirmed: reservations.filter(r => r.status === 'confirmed').length,
+        completed: reservations.filter(r => r.status === 'completed').length,
+        cancelled: reservations.filter(r => r.status === 'cancelled').length,
+        revenue: reservations
+          .filter(r => r.status !== 'cancelled')
+          .reduce((sum, r) => sum + parseFloat(r.totalPrice || 0), 0)
+      };
+
+      document.getElementById('adminStats').innerHTML = `
+        <div class="stat-card">
+          <div>Total Réservations</div>
+          <div class="stat-number">${stats.total}</div>
+        </div>
+        <div class="stat-card">
+          <div>Confirmées</div>
+          <div class="stat-number">${stats.confirmed}</div>
+        </div>
+        <div class="stat-card">
+          <div>Terminées</div>
+          <div class="stat-number">${stats.completed}</div>
+        </div>
+        <div class="stat-card">
+          <div>Annulées</div>
+          <div class="stat-number">${stats.cancelled}</div>
+        </div>
+        <div class="stat-card">
+          <div>Chiffre d'Affaires</div>
+          <div class="stat-number">${stats.revenue.toFixed(2)}€</div>
+        </div>
+      `;
+    }
+
+    // Afficher les réservations
+    function displayReservations(reservations) {
+      const container = document.getElementById('reservationsList');
+      
+      if (reservations.length === 0) {
+        container.innerHTML = `
+          <div class="no-reservations">
+            <h3>Aucune réservation pour le moment</h3>
+            <p>Les réservations apparaîtront ici une fois créées.</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Trier les réservations par date (plus récentes en premier)
+      const sortedReservations = reservations.sort((a, b) => 
+        new Date(b.date || b.id) - new Date(a.date || a.id)
+      );
+
+      container.innerHTML = sortedReservations.map(reservation => `
+        <div class="reservation" data-status="${reservation.status}" data-pack-type="${reservation.packType}">
+          <div class="reservation-header">
+            <div>
+              <h3>${reservation.clientName}</h3>
+              <div class="reservation-id">Réservation #${reservation.id ? reservation.id.slice(-6) : 'N/A'}</div>
+            </div>
+            <span class="status status-${reservation.status || 'confirmed'}">
+              ${getStatusText(reservation.status)}
+            </span>
+          </div>
+          
+          <div class="client-info">
+            <strong>Contact:</strong> ${reservation.clientEmail} - ${reservation.clientPhone}
+          </div>
+          
+          <div class="reservation-details">
+            <div>
+              <strong>Date:</strong> ${reservation.day} à ${reservation.startTime}<br>
+              <strong>Durée:</strong> ${Math.floor((reservation.duration || reservation.totalDuration) / 60)}h${(reservation.duration || reservation.totalDuration) % 60}min<br>
+              <strong>Heure de rendu:</strong> ${RESERVATION_STORAGE.addMinutes(reservation.startTime, reservation.duration || reservation.totalDuration)}
+            </div>
+            <div>
+              <strong>Type:</strong> ${reservation.packType === 'simple' ? 'Pack Simple' : 'Pack Avancé'}<br>
+              <strong>Consoles:</strong> ${reservation.consolesCount || 1}<br>
+              <strong>Total:</strong> ${reservation.totalPrice || reservation.price} €
+            </div>
+          </div>
+
+          ${reservation.packType === 'avance' && reservation.consoles ? `
+            <div class="console-details">
+              <strong>Détails des consoles:</strong>
+              ${reservation.consoles.map((console, index) => `
+                <div style="margin-top: 8px; padding: 8px; background: white; border-radius: 4px;">
+                  <strong>Console ${index + 1}:</strong> ${console.type}<br>
+                  <small>
+                    ${console.chip ? '✓ Puce ' : ''}
+                    ${console.sd ? '✓ Carte SD ' : ''}
+                    ${console.setup ? '✓ Setup ' : ''}
+                    ${console.games ? '✓ Jeux ' : ''}
+                    ${console.warranty ? '✓ Garantie ' : ''}
+                    ${console.tip ? `(+ ${console.tip}€ pourboire)` : ''}
+                    - ${console.total}€
+                  </small>
+                  ${console.gamesList && console.gamesList.length > 0 ? `
+                    <br><small><strong>Jeux:</strong> ${console.gamesList.filter(g => g).join(', ')}</small>
+                  ` : ''}
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+
+          ${reservation.packType === 'simple' ? `
+            <div class="console-details">
+              <strong>Détails:</strong> Pack Simple - ${reservation.consoleModel} - ${reservation.price}€
+            </div>
+          ` : ''}
+
+          <div class="action-buttons">
+            ${reservation.status === 'confirmed' ? `
+              <button class="btn btn-complete" onclick="updateReservationStatus('${reservation.id}', 'completed')">
+                Marquer comme terminé
+              </button>
+            ` : ''}
+            
+            ${reservation.status !== 'cancelled' ? `
+              <button class="btn btn-cancel" onclick="updateReservationStatus('${reservation.id}', 'cancelled')">
+                Annuler
+              </button>
+            ` : ''}
+            
+            <button class="btn btn-edit" onclick="editReservation('${reservation.id}')">
+              Modifier
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Filtrer les réservations
+    function filterReservations() {
+      const statusFilter = document.getElementById('statusFilter').value;
+      const packTypeFilter = document.getElementById('packTypeFilter').value;
+      
+      const reservations = RESERVATION_STORAGE.getReservations();
+      let filteredReservations = reservations;
+
+      if (statusFilter !== 'all') {
+        filteredReservations = filteredReservations.filter(r => r.status === statusFilter);
+      }
+
+      if (packTypeFilter !== 'all') {
+        filteredReservations = filteredReservations.filter(r => r.packType === packTypeFilter);
+      }
+
+      displayReservations(filteredReservations);
+    }
+
+    // Mettre à jour le statut d'une réservation
+    function updateReservationStatus(reservationId, newStatus) {
+      const reservations = RESERVATION_STORAGE.getReservations();
+      const reservationIndex = reservations.findIndex(r => r.id === reservationId);
+      
+      if (reservationIndex !== -1) {
+        reservations[reservationIndex].status = newStatus;
+        localStorage.setItem('reservations', JSON.stringify(reservations));
+        
+        // Recharger l'affichage
+        loadReservations();
+        
+        alert(`Réservation ${newStatus === 'completed' ? 'marquée comme terminée' : 'annulée'} avec succès!`);
+      }
+    }
+
+    // Éditer une réservation (fonction de base)
+    function editReservation(reservationId) {
+      const reservations = RESERVATION_STORAGE.getReservations();
+      const reservation = reservations.find(r => r.id === reservationId);
+      
+      if (reservation) {
+        // Pour l'instant, on affiche juste les données en console
+        console.log('Édition réservation:', reservation);
+        alert(`Édition de la réservation ${reservationId}\n\nCette fonctionnalité sera implémentée dans une version future.`);
+        // Ici, on pourrait ouvrir un modal d'édition
+      }
+    }
+
+    // Obtenir le texte du statut
+    function getStatusText(status) {
+      const statusMap = {
+        'confirmed': 'Confirmé',
+        'completed': 'Terminé',
+        'cancelled': 'Annulé'
+      };
+      return statusMap[status] || 'Confirmé';
+    }
+
+    // Fonction pour exporter les réservations (bonus)
+    function exportReservations() {
+      const reservations = RESERVATION_STORAGE.getReservations();
+      const dataStr = JSON.stringify(reservations, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(dataBlob);
+      link.download = `reservations_${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+    }
+
+    // Fonction pour importer des réservations (bonus)
+    function importReservations(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const importedReservations = JSON.parse(e.target.result);
+          const currentReservations = RESERVATION_STORAGE.getReservations();
+          
+          // Fusionner les réservations (éviter les doublons)
+          const mergedReservations = [...currentReservations];
+          importedReservations.forEach(newRes => {
+            if (!currentReservations.find(r => r.id === newRes.id)) {
+              mergedReservations.push(newRes);
+            }
+          });
+          
+          localStorage.setItem('reservations', JSON.stringify(mergedReservations));
+          loadReservations();
+          alert('Réservations importées avec succès!');
+        } catch (error) {
+          alert('Erreur lors de l\'import: fichier invalide');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // Ajouter des boutons d'export/import dans l'interface
+    function addAdminTools() {
+      const filtersDiv = document.querySelector('.filters');
+      const toolsDiv = document.createElement('div');
+      toolsDiv.className = 'filter-group';
+      toolsDiv.innerHTML = `
+        <label>Outils Admin:</label>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn" onclick="exportReservations()" style="background: #2196F3; color: white;">Exporter</button>
+          <label class="btn" style="background: #4CAF50; color: white; cursor: pointer;">
+            Importer
+            <input type="file" accept=".json" onchange="importReservations(event)" style="display: none;">
+          </label>
+          <button class="btn" onclick="clearAllReservations()" style="background: #f44336; color: white;">Tout supprimer</button>
+        </div>
+      `;
+      filtersDiv.appendChild(toolsDiv);
+    }
+
+    // Fonction pour tout supprimer (avec confirmation)
+    function clearAllReservations() {
+      if (confirm('Êtes-vous sûr de vouloir supprimer TOUTES les réservations ? Cette action est irréversible.')) {
+        localStorage.removeItem('reservations');
+        loadReservations();
+        alert('Toutes les réservations ont été supprimées.');
+      }
+    }
+
+    // Charger au démarrage
+    document.addEventListener('DOMContentLoaded', function() {
+      loadReservations();
+      addAdminTools();
+      
+      // Vérifier périodiquement les nouvelles réservations
+      setInterval(loadReservations, 5000); // Rafraîchir toutes les 5 secondes
+    });
+  </script>
+</body>
+</html>

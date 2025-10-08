@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Console Service - Plages Horaires</title>
+  <script src="config.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+    .container { max-width: 1000px; margin: 0 auto; padding: 20px; background-color: white; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #333; }
+    .resume { background-color: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .calendar { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 20px; }
+    .day-column { margin-bottom: 30px; }
+    .day-header { font-weight: bold; margin-bottom: 10px; padding: 10px; background-color: #e3f2fd; border-radius: 5px; }
+    .time-slots { position: relative; height: 840px; border: 1px solid #ddd; border-radius: 5px; background: repeating-linear-gradient(0deg, transparent, transparent 59px, #f0f0f0 60px); }
+    .hour-mark { position: absolute; left: 0; right: 0; height: 60px; border-bottom: 1px solid #eee; display: flex; align-items: center; padding-left: 10px; font-size: 0.8em; color: #666; }
+    .time-slot { position: absolute; left: 80px; right: 10px; border-radius: 3px; cursor: pointer; transition: all 0.3s; }
+    .time-slot:hover { opacity: 0.8; }
+    .business-hours { background-color: #e8f5e9; border: 1px dashed #4CAF50; }
+    .reserved-slot { background-color: #ffcdd2 !important; border: 1px solid #f44336; cursor: not-allowed; }
+    .selected-slot { background-color: #2196F3 !important; border: 2px solid #1976D2; }
+    .slot-label { padding: 5px; color: white; font-size: 0.8em; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; }
+    input, textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+    .action-buttons { margin-top: 30px; text-align: center; }
+    button { padding: 10px 20px; margin: 0 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; }
+    .btn-primary { background-color: #2196F3; color: white; }
+    .btn-secondary { background-color: #f5f5f5; color: #333; border: 1px solid #ddd; }
+    .duration-display { margin: 10px 0; padding: 10px; background-color: #fff3cd; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Sélectionnez une plage horaire</h1>
+    
+    <div class="resume" id="resume">
+      <!-- Les détails de la réservation seront affichés ici -->
+    </div>
+    
+    <div class="form-group">
+      <label for="client-name">Nom du client:</label>
+      <input type="text" id="client-name" placeholder="Votre nom">
+    </div>
+    
+    <div class="form-group">
+      <label for="client-email">Email:</label>
+      <input type="email" id="client-email" placeholder="Votre email">
+    </div>
+    
+    <div class="form-group">
+      <label for="client-phone">Téléphone:</label>
+      <input type="tel" id="client-phone" placeholder="Votre numéro de téléphone">
+    </div>
+    
+    <div class="duration-display">
+      <strong>Durée nécessaire:</strong> <span id="hours-needed">0</span> heures <span id="minutes-needed">0</span> minutes
+    </div>
+    
+    <h2>Calendrier des disponibilités</h2>
+    <p>Sélectionnez votre créneau en cliquant sur une plage horaire :</p>
+    
+    <div class="calendar" id="calendar">
+      <!-- Le calendrier sera généré ici -->
+    </div>
+    
+    <div id="selected-slot-info" style="margin-top: 20px; padding: 15px; background-color: #e3f2fd; border-radius: 5px; display: none;">
+      <h3>Créneau sélectionné:</h3>
+      <p id="slot-details"></p>
+      <p id="completion-time"></p>
+    </div>
+    
+    <div class="action-buttons">
+      <button class="btn-secondary" onclick="goBack()">Retour</button>
+      <button class="btn-primary" onclick="confirmReservation()" id="confirm-btn" disabled>Confirmer la réservation</button>
+    </div>
+  </div>
+
+  <script>
+    // Récupérer les données du localStorage
+    const packType = localStorage.getItem('packType');
+    const consolesCount = parseInt(localStorage.getItem('consolesCount')) || 1;
+    const totalPrice = localStorage.getItem('totalPrice');
+    const totalDuration = parseInt(localStorage.getItem('totalDuration')) || 120;
+    
+    // CORRECTION : Vérifier les données pour pack simple
+    let reservationData = {};
+    if (packType === 'simple') {
+      reservationData = {
+        packType: 'simple',
+        consoleModel: localStorage.getItem('consoleModel'),
+        price: localStorage.getItem('price'),
+        duration: parseInt(localStorage.getItem('duration') || '90'),
+        consolesCount: 1,
+        totalPrice: localStorage.getItem('price')
+      };
+    } else {
+      reservationData = {
+        packType: 'avance',
+        consoles: JSON.parse(localStorage.getItem('consoles') || '[]'),
+        consolesCount: parseInt(localStorage.getItem('consolesCount') || '1'),
+        totalPrice: localStorage.getItem('totalPrice'),
+        totalDuration: parseInt(localStorage.getItem('totalDuration') || '120')
+      };
+    }
+    
+    // Convertir la durée en heures et minutes
+    const hours = Math.floor(totalDuration / 60);
+    const minutes = totalDuration % 60;
+    document.getElementById('hours-needed').textContent = hours;
+    document.getElementById('minutes-needed').textContent = minutes;
+    
+    let selectedSlot = null;
+
+    // Afficher le résumé de la réservation
+    function displayResume() {
+      let resumeHTML = '<h3>Résumé de votre commande:</h3>';
+      
+      if (packType === 'simple') {
+        // CORRECTION : Afficher correctement le pack simple
+        resumeHTML += `
+          <p><strong>Pack Simple</strong></p>
+          <p>Modèle: ${reservationData.consoleModel}</p>
+          <p>Prix: ${reservationData.price} €</p>
+          <p>Durée: ${Math.floor(reservationData.duration / 60)}h${reservationData.duration % 60}min</p>
+        `;
+      } else {
+        resumeHTML += `<p><strong>Pack Avancé</strong> - ${reservationData.consolesCount} console(s)</p>`;
+        reservationData.consoles.forEach((console, index) => {
+          let consoleDesc = `Console ${index + 1}: ${console.type}`;
+          if (console.chip) consoleDesc += ', Puce';
+          if (console.setup) consoleDesc += ', Setup';
+          if (console.games) consoleDesc += ', Jeux';
+          if (console.warranty) consoleDesc += ', Garantie';
+          resumeHTML += `<p>${consoleDesc} - ${console.total} € (${console.duration} min)</p>`;
+        });
+      }
+      
+      resumeHTML += `<p><strong>Total: ${totalPrice} €</strong></p>`;
+      resumeHTML += `<p><strong>Durée totale: ${hours}h${minutes > 0 ? minutes + 'min' : ''}</strong></p>`;
+      document.getElementById('resume').innerHTML = resumeHTML;
+    }
+    
+    // Générer le calendrier avec les créneaux réservés
+    function generateCalendar() {
+      const calendar = document.getElementById('calendar');
+      calendar.innerHTML = '';
+      
+      Object.entries(CONFIG.businessHours).forEach(([day, slots]) => {
+        const dayColumn = document.createElement('div');
+        dayColumn.className = 'day-column';
+        
+        const dayHeader = document.createElement('div');
+        dayHeader.className = 'day-header';
+        dayHeader.textContent = day;
+        dayColumn.appendChild(dayHeader);
+        
+        const timeSlots = document.createElement('div');
+        timeSlots.className = 'time-slots';
+        timeSlots.id = `slots-${day}`;
+        
+        // Ajouter les marques d'heures
+        for (let hour = 8; hour <= 22; hour++) {
+          const hourMark = document.createElement('div');
+          hourMark.className = 'hour-mark';
+          hourMark.style.top = `${(hour - 8) * 60}px`;
+          hourMark.textContent = `${hour.toString().padStart(2, '0')}:00`;
+          timeSlots.appendChild(hourMark);
+        }
+        
+        // Ajouter les plages horaires d'ouverture
+        slots.forEach(slot => {
+          const [start, end] = slot.split('-');
+          const startMinutes = timeToMinutes(start);
+          const endMinutes = timeToMinutes(end);
+          
+          const businessSlot = document.createElement('div');
+          businessSlot.className = 'time-slot business-hours';
+          businessSlot.style.top = `${startMinutes - 480}px`;
+          businessSlot.style.height = `${endMinutes - startMinutes}px`;
+          businessSlot.innerHTML = `<div class="slot-label" style="color: #2e7d32;">${start} - ${end}</div>`;
+          timeSlots.appendChild(businessSlot);
+        });
+        
+        // CORRECTION : Ajouter les créneaux déjà réservés
+        const reservedSlots = RESERVATION_STORAGE.getReservedSlots(day);
+        reservedSlots.forEach(slot => {
+          const startMinutes = timeToMinutes(slot.start);
+          const endMinutes = timeToMinutes(slot.end);
+          
+          const reservedSlot = document.createElement('div');
+          reservedSlot.className = 'time-slot reserved-slot';
+          reservedSlot.style.top = `${startMinutes - 480}px`;
+          reservedSlot.style.height = `${endMinutes - startMinutes}px`;
+          reservedSlot.innerHTML = `<div class="slot-label">RÉSERVÉ</div>`;
+          timeSlots.appendChild(reservedSlot);
+        });
+        
+        // Rendre la zone sélectionnable
+        makeSelectable(timeSlots, day);
+        
+        dayColumn.appendChild(timeSlots);
+        calendar.appendChild(dayColumn);
+      });
+    }
+    
+    function timeToMinutes(time) {
+      const [hours, minutes] = time.split(':').map(Number);
+      return hours * 60 + minutes;
+    }
+    
+    function minutesToTime(minutes) {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    }
+    
+    function makeSelectable(container, day) {
+      container.addEventListener('click', handleSlotClick);
+      
+      function handleSlotClick(e) {
+        const rect = container.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const minutesFromTop = Math.max(0, Math.min(840, y));
+        const startMinutes = 480 + Math.floor(minutesFromTop / 60) * 60;
+        
+        // Vérifier si le créneau est disponible
+        const isAvailable = RESERVATION_STORAGE.isTimeSlotAvailable(day, minutesToTime(startMinutes), totalDuration);
+        
+        if (!isAvailable) {
+          alert('Ce créneau n\'est pas disponible. Veuillez en choisir un autre.');
+          return;
+        }
+        
+        createSelectionSlot(day, startMinutes);
+      }
+    }
+    
+    function createSelectionSlot(day, startMinutes) {
+      // Supprimer l'ancienne sélection
+      const oldSelections = document.querySelectorAll('.time-slot.selected-slot');
+      oldSelections.forEach(slot => slot.remove());
+      
+      const container = document.getElementById(`slots-${day}`);
+      const slot = document.createElement('div');
+      slot.className = 'time-slot selected-slot';
+      slot.style.top = `${startMinutes - 480}px`;
+      slot.style.height = `${totalDuration}px`;
+      slot.innerHTML = `<div class="slot-label">VOTRE CHOIX: ${minutesToTime(startMinutes)} - ${minutesToTime(startMinutes + totalDuration)}</div>`;
+      container.appendChild(slot);
+      
+      selectedSlot = {
+        day: day,
+        startTime: minutesToTime(startMinutes),
+        startMinutes: startMinutes,
+        duration: totalDuration
+      };
+      
+      updateSelectedSlotInfo();
+      updateConfirmButton();
+    }
+    
+    function updateSelectedSlotInfo() {
+      if (!selectedSlot) return;
+      
+      const infoDiv = document.getElementById('selected-slot-info');
+      const details = document.getElementById('slot-details');
+      const completion = document.getElementById('completion-time');
+      
+      const endTime = RESERVATION_STORAGE.addMinutes(selectedSlot.startTime, selectedSlot.duration);
+      
+      details.textContent = `${selectedSlot.day} de ${selectedSlot.startTime} à ${endTime}`;
+      completion.textContent = `Heure de rendu estimée: ${endTime}`;
+      
+      infoDiv.style.display = 'block';
+    }
+    
+    function updateConfirmButton() {
+      document.getElementById('confirm-btn').disabled = !selectedSlot;
+    }
+    
+    // Retourner à la page précédente
+    function goBack() {
+      if (packType === 'simple') {
+        location.href = 'pack-simple.html';
+      } else {
+        location.href = 'pack-avance.html';
+      }
+    }
+    
+    // Confirmer la réservation
+    function confirmReservation() {
+      if (!selectedSlot) {
+        alert('Veuillez sélectionner une plage horaire.');
+        return;
+      }
+      
+      const clientName = document.getElementById('client-name').value;
+      const clientEmail = document.getElementById('client-email').value;
+      const clientPhone = document.getElementById('client-phone').value;
+      
+      if (!clientName || !clientEmail || !clientPhone) {
+        alert('Veuillez remplir tous les champs obligatoires.');
+        return;
+      }
+      
+      // Créer l'objet de réservation
+      const reservation = {
+        packType,
+        consolesCount,
+        totalPrice,
+        totalDuration,
+        clientName,
+        clientEmail,
+        clientPhone,
+        ...selectedSlot,
+        date: new Date().toISOString(),
+        status: 'confirmed'
+      };
+      
+      // Ajouter les détails spécifiques
+      if (packType === 'avance') {
+        reservation.consoles = JSON.parse(localStorage.getItem('consoles'));
+      } else {
+        reservation.consoleModel = localStorage.getItem('consoleModel');
+        reservation.price = localStorage.getItem('price');
+      }
+      
+      // Sauvegarder la réservation
+      const success = RESERVATION_STORAGE.saveReservation(reservation);
+      
+      if (success) {
+        // Envoyer un email de confirmation
+        sendConfirmationEmail(reservation);
+        alert('Réservation confirmée! Vous recevrez un email de confirmation.');
+        
+        // Rediriger vers la page d'accueil
+        setTimeout(() => {
+          location.href = 'index.html';
+        }, 2000);
+      } else {
+        alert('Erreur lors de la sauvegarde de la réservation. Veuillez réessayer.');
+      }
+    }
+    
+    // Envoyer un email de confirmation
+    function sendConfirmationEmail(reservation) {
+      // Simulation d'envoi d'email
+      const emailData = {
+        to: reservation.clientEmail,
+        subject: 'Confirmation de réservation - Console Service',
+        body: `
+          Bonjour ${reservation.clientName},
+          
+          Votre réservation a été confirmée.
+          
+          Détails de la réservation:
+          - Type de pack: ${reservation.packType}
+          - Nombre de consoles: ${reservation.consolesCount}
+          - Date: ${reservation.day}
+          - Horaire: ${reservation.startTime}
+          - Durée: ${Math.floor(reservation.totalDuration / 60)}h${reservation.totalDuration % 60}min
+          - Heure de rendu estimée: ${RESERVATION_STORAGE.addMinutes(reservation.startTime, reservation.totalDuration)}
+          - Total: ${reservation.totalPrice} €
+          
+          Merci pour votre confiance!
+          
+          Console Service
+        `
+      };
+      
+      console.log('Email envoyé:', emailData);
+    }
+    
+    // Initialiser la page
+    displayResume();
+    generateCalendar();
+  </script>
+</body>
+</html>
